@@ -9,6 +9,9 @@ from objpool import exceptions
 from objpool import types
 
 
+SENTINEL = object()
+
+
 def async_decorator(func):
     @functools.wraps(func)
     async def decorator(self):
@@ -70,3 +73,22 @@ class ObjectPool(t.Generic[types.Element]):
                 return value
             await self._cond.wait()
             return self._pool.popleft()
+
+    def acquired(self) -> "ObjectPoolAsyncContext":
+        return ObjectPoolAsyncContext(self)
+
+
+class ObjectPoolAsyncContext(t.Generic[types.Element]):
+    _pool: ObjectPool[types.Element]
+
+    def __init__(self, pool: ObjectPool[types.Element]):
+        self._pool = pool
+        self._item = SENTINEL
+
+    async def __aenter__(self) -> types.Element:
+        self._item = await self._pool.get()
+        return self._item
+
+    async def __aexit__(self, *args, **kwargs) -> None:
+        if self._item is not _SENTINEL:
+            await self._pool.release(t.cast(types.Element, self._item))

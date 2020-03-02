@@ -1,6 +1,7 @@
 # vim: set et sw=4 ts=4:
 
 import collections
+import contextlib
 import threading
 import typing as t
 
@@ -58,3 +59,13 @@ class ObjectPool(t.Generic[types.Element]):
             if timeout == 0 or not self._cond.wait(timeout):
                 raise exceptions.ObjectPoolEmptyError()
             return self._pool.popleft()
+
+    @contextlib.contextmanager
+    def acquired(
+        self, timeout: types.Timeout = 0
+    ) -> t.Iterator[types.Element]:
+        item = self.get(timeout)
+        try:
+            yield item
+        finally:
+            self.release(item)
