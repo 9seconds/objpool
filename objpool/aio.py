@@ -20,41 +20,7 @@ def async_decorator(func):
 class ObjectPool(t.Generic[types.Element]):
     _pool: t.Deque[types.Element]
     _maker: t.Callable[[t.Any], t.Awaitable[types.Element]]
-
-    def __init__(
-        self,
-        maker: t.Union[
-            types.SyncElementMaker[types.Element],
-            types.AsyncElementMaker[types.Element],
-        ],
-    ) -> None:
-        self._pool = collections.deque()
-        if not asyncio.iscoroutinefunction(maker):
-            self._maker = t.cast(  # type: ignore[assignment]
-                t.Callable[[], t.Awaitable[types.Element]],
-                async_decorator(maker),
-            )
-        else:
-            self._maker = maker  # type: ignore[assignment]
-
-    def __len__(self) -> int:
-        return len(self._pool)
-
-    def __str__(self) -> str:
-        return f"<{self.__class__.__name__}(size={len(self)})>"
-
-    async def release(self, item: types.Element) -> None:
-        self._pool.append(item)
-
-    async def get(self) -> types.Element:
-        try:
-            return self._pool.popleft()
-        except IndexError:
-            return await self._maker()
-
-
-class LimitedObjectPool(ObjectPool[types.Element]):
-    _maxsize: int
+    _maxsize: t.Optional[int]
     _created: int
     _cond: asyncio.Condition
 
@@ -64,15 +30,25 @@ class LimitedObjectPool(ObjectPool[types.Element]):
             types.SyncElementMaker[types.Element],
             types.AsyncElementMaker[types.Element],
         ],
-        maxsize: int,
+        maxsize: t.Optional[int] = None,
     ) -> None:
-        if maxsize < 1:
-            raise ValueError("Maxsize has to be >= 0")
+        if maxsize is not None and maxsize < 1:
+            raise ValueError("If maxsize is defined, it has to be >= 1")
 
-        super().__init__(maker)
+        self._pool = collections.deque()
+        if not asyncio.iscoroutinefunction(maker):
+            self._maker = t.cast(  # type: ignore[assignment]
+                t.Callable[[], t.Awaitable[types.Element]],
+                async_decorator(maker),
+            )
+        else:
+            self._maker = maker  # type: ignore[assignment]
         self._maxsize = maxsize
         self._created = 0
         self._cond = asyncio.Condition()
+
+    def __len__(self) -> int:
+        return len(self._pool)
 
     def __str__(self) -> str:
         return f"<{self.__class__.__name__}(size={len(self)}, maxsize={self._maxsize})>"
@@ -88,7 +64,7 @@ class LimitedObjectPool(ObjectPool[types.Element]):
         async with self._cond:
             if len(self) > 0:
                 return self._pool.popleft()
-            if self._created < self._maxsize:
+            if self._maxsize is not None and self._created < self._maxsize:
                 value = await self._maker()
                 self._created += 1
                 return value
