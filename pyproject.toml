@@ -2,7 +2,7 @@
 authors = ["Sergey Arkhipov <nineseconds@yandex.ru>"]
 description = "An implementation of object pool"
 maintainers = ["Sergey Arkhipov <nineseconds@yandex.ru>"]
-name = "uncork-browser-farm"
+name = "objpool"
 license = "MIT"
 homepage = "https://github.com/9seconds/objpool"
 repository = "https://github.com/9seconds/objpool"
@@ -11,7 +11,7 @@ version = "0.0.1"
 packages = [{ include = "objpool" }]
 
 [tool.poetry.dependencies]
-python = "^3.5"
+python = "^3.6"
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
